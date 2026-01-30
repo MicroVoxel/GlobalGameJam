@@ -1,0 +1,31 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f858e2b6dd580dc448adf0a1e6b3bd90, type: 3}
+  m_Name: PlayerConfig
+  m_EditorClassIdentifier: Assembly-CSharp::Core.Player.PlayerConfig
+  WalkSpeed: 4
+  CrouchSpeed: 2
+  SmoothTime: 0.1
+  LookSensitivityX: 1
+  LookSensitivityY: 1
+  TopClamp: 90
+  BottomClamp: -90
+  Gravity: -15
+  GroundCheckRadius: 0.2
+  GroundLayer:
+    serializedVersion: 2
+    m_Bits: 1
+  StandHeight: 2
+  CrouchHeight: 1
+  CrouchTransitionSpeed: 10
+  CenterOffset: {x: 0, y: 0, z: 0}
+  CrouchCenter: {x: 0, y: 0.5, z: 0}
