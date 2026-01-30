@@ -1,6 +1,7 @@
 ﻿using UnityEngine;
 using Core.Input;
 using Core.StateMachine;
+using Core.Managers; // [New] เพิ่มการอ้างอิง Manager
 using System;
 
 namespace Core.Player
@@ -8,6 +9,7 @@ namespace Core.Player
     [RequireComponent(typeof(CharacterController))]
     public class PlayerController : MonoBehaviour
     {
+        // ... (Variables เดิม) ...
         [Header("Dependencies")]
         [SerializeField] private GameInputReader _inputReader;
         [SerializeField] private PlayerConfig _config;
@@ -17,20 +19,17 @@ namespace Core.Player
         public Transform CameraRoot => _cameraRoot.transform;
 
         [Header("Visuals")]
-        [Tooltip("LAK MODEL TO HERE! ลาก Model ที่มี Animator มาใส่ตรงนี้")]
         [SerializeField] private Animator _animator;
 
-        // Components
         private CharacterController _characterController;
         private PlayerStateMachine _stateMachine;
-
-        // Runtime Variables
         private Vector2 _currentInputVector;
         private Vector2 _currentLookVector;
         private Vector3 _velocity;
         private float _cinemachineTargetPitch;
 
-        public Vector3 Velocity => _characterController.velocity;
+        // Mask State
+        public bool IsMaskEquipped { get; private set; }
 
         // Animation Hash IDs
         private int _animIDVelocityX;
@@ -40,17 +39,11 @@ namespace Core.Player
         private int _animIDGrounded;
         private int _animIDJump;
 
-        // Mask State
-        public bool IsMaskEquipped { get; private set; }
-        public event Action<bool> OnMaskStateChanged;
-
         private void Awake()
         {
             _characterController = GetComponent<CharacterController>();
             _stateMachine = new PlayerStateMachine(this);
-
             AssignAnimationIDs();
-
             Cursor.lockState = CursorLockMode.Locked;
             Cursor.visible = false;
         }
@@ -58,15 +51,15 @@ namespace Core.Player
         private void Start()
         {
             if (_config == null) Debug.LogError("❌ PlayerConfig is MISSING!");
-
-            if (_animator == null)
-            {
-                Debug.LogError("❌ ANIMATOR IS MISSING! Please assign the Player Model's Animator to the PlayerController script.");
-                _animator = GetComponentInChildren<Animator>();
-                if (_animator != null) Debug.Log("💡 Auto-found Animator in children.");
-            }
+            if (_animator == null) _animator = GetComponentInChildren<Animator>();
 
             _stateMachine.Initialize(new PlayerStandingState(this, _stateMachine, _config));
+
+            // [New] Subscribe RealityManager
+            if (RealityManager.Instance != null)
+            {
+                RealityManager.Instance.OnRealityChanged += OnRealityStateChanged;
+            }
         }
 
         private void OnEnable()
@@ -75,9 +68,11 @@ namespace Core.Player
             _inputReader.EnableInput();
             _inputReader.MoveEvent += OnMove;
             _inputReader.LookEvent += OnLook;
-            _inputReader.JumpEvent += OnJump; // [Fix] Subscribe Jump
+            _inputReader.JumpEvent += OnJump;
             _inputReader.CrouchEvent += OnCrouch;
-            _inputReader.ToggleMaskEvent += OnToggleMask;
+
+            // [Modified] ไม่ต้อง Subscribe ToggleMaskEvent ที่นี่แล้ว เพราะ RealityManager ทำหน้าที่นั้นแทน
+            // หรือถ้าอยากให้ Player เป็นคนสั่ง Manager ก็ทำได้ แต่ให้ Manager ฟัง InputReader ตรงๆ จะ Clean กว่า
         }
 
         private void OnDisable()
@@ -86,11 +81,18 @@ namespace Core.Player
             {
                 _inputReader.MoveEvent -= OnMove;
                 _inputReader.LookEvent -= OnLook;
-                _inputReader.JumpEvent -= OnJump; // [Fix] Unsubscribe Jump
+                _inputReader.JumpEvent -= OnJump;
                 _inputReader.CrouchEvent -= OnCrouch;
-                _inputReader.ToggleMaskEvent -= OnToggleMask;
+            }
+
+            // [New] Unsubscribe RealityManager
+            if (RealityManager.Instance != null)
+            {
+                RealityManager.Instance.OnRealityChanged -= OnRealityStateChanged;
             }
         }
+
+        // ... (Update, LateUpdate, Logic Methods คงเดิม) ...
 
         private void Update()
         {
@@ -102,40 +104,6 @@ namespace Core.Player
         private void LateUpdate()
         {
             HandleCameraRotation();
-        }
-
-        // --- Animation Logic ---
-
-        private void AssignAnimationIDs()
-        {
-            _animIDVelocityX = Animator.StringToHash("VelocityX");
-            _animIDVelocityZ = Animator.StringToHash("VelocityZ");
-            _animIDCrouch = Animator.StringToHash("IsCrouching");
-            _animIDMask = Animator.StringToHash("IsMaskEquipped");
-            _animIDGrounded = Animator.StringToHash("IsGrounded");
-            _animIDJump = Animator.StringToHash("Jump");
-        }
-
-        private void UpdateAnimator()
-        {
-            if (_animator == null) return;
-
-            float targetX = _currentInputVector.x * (_config.WalkSpeed);
-            float targetZ = _currentInputVector.y * (_config.WalkSpeed);
-
-            _animator.SetFloat(_animIDVelocityX, targetX, 0.1f, Time.deltaTime);
-            _animator.SetFloat(_animIDVelocityZ, targetZ, 0.1f, Time.deltaTime);
-            _animator.SetBool(_animIDGrounded, _characterController.isGrounded);
-        }
-
-        public void SetCrouchAnimation(bool isCrouching)
-        {
-            if (_animator) _animator.SetBool(_animIDCrouch, isCrouching);
-        }
-
-        public void TriggerJumpAnimation()
-        {
-            if (_animator) _animator.SetTrigger(_animIDJump);
         }
 
         // --- Logic Methods ---
@@ -170,12 +138,7 @@ namespace Core.Player
 
         private void ApplyGravity()
         {
-            // Reset velocity Y เมื่ออยู่บนพื้นและไม่ได้กำลังกระโดดขึ้น
-            if (_characterController.isGrounded && _velocity.y < 0)
-            {
-                _velocity.y = -2f;
-            }
-
+            if (_characterController.isGrounded && _velocity.y < 0) _velocity.y = -2f;
             _velocity.y += _config.Gravity * Time.deltaTime;
             _characterController.Move(_velocity * Time.deltaTime);
         }
@@ -187,17 +150,45 @@ namespace Core.Player
             return Mathf.Clamp(lfAngle, lfMin, lfMax);
         }
 
-        // --- Event Handlers ---
+        private void AssignAnimationIDs()
+        {
+            _animIDVelocityX = Animator.StringToHash("VelocityX");
+            _animIDVelocityZ = Animator.StringToHash("VelocityZ");
+            _animIDCrouch = Animator.StringToHash("IsCrouching");
+            _animIDMask = Animator.StringToHash("IsMaskEquipped");
+            _animIDGrounded = Animator.StringToHash("IsGrounded");
+            _animIDJump = Animator.StringToHash("Jump");
+        }
+
+        private void UpdateAnimator()
+        {
+            if (_animator == null) return;
+
+            float targetX = _currentInputVector.x * (_config.WalkSpeed);
+            float targetZ = _currentInputVector.y * (_config.WalkSpeed);
+
+            _animator.SetFloat(_animIDVelocityX, targetX, 0.1f, Time.deltaTime);
+            _animator.SetFloat(_animIDVelocityZ, targetZ, 0.1f, Time.deltaTime);
+            _animator.SetBool(_animIDGrounded, _characterController.isGrounded);
+        }
+
+        public void SetCrouchAnimation(bool isCrouching)
+        {
+            if (_animator) _animator.SetBool(_animIDCrouch, isCrouching);
+        }
+
+        public void TriggerJumpAnimation()
+        {
+            if (_animator) _animator.SetTrigger(_animIDJump);
+        }
 
         private void OnMove(Vector2 input) => _currentInputVector = input;
         private void OnLook(Vector2 input) => _currentLookVector = input;
 
         private void OnJump()
         {
-            // [Fix] Logic การกระโดด
             if (_characterController.isGrounded)
             {
-                // สูตรฟิสิกส์: v = sqrt(h * -2 * g)
                 _velocity.y = Mathf.Sqrt(_config.JumpHeight * -2f * _config.Gravity);
                 TriggerJumpAnimation();
             }
@@ -211,12 +202,13 @@ namespace Core.Player
                 _stateMachine.ChangeState(new PlayerStandingState(this, _stateMachine, _config));
         }
 
-        private void OnToggleMask()
+        // [New] Handle Event จาก RealityManager
+        private void OnRealityStateChanged(bool isEquipped)
         {
-            IsMaskEquipped = !IsMaskEquipped;
-            OnMaskStateChanged?.Invoke(IsMaskEquipped);
-
+            IsMaskEquipped = isEquipped;
             if (_animator) _animator.SetBool(_animIDMask, IsMaskEquipped);
+
+            // อาจจะเล่นเสียงใส่หน้ากากตรงนี้ได้
         }
     }
 }
