@@ -1,5 +1,36 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
+--- !u!1 &729000148391188974
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 3767120015583520193}
+  m_Layer: 0
+  m_Name: HoldPoint
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &3767120015583520193
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 729000148391188974}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 1.5}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 6586459451250572944}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1195324937614963952
 GameObject:
   m_ObjectHideFlags: 0
@@ -178,6 +209,7 @@ GameObject:
   m_Component:
   - component: {fileID: 6586459451250572944}
   - component: {fileID: 4321190055867494642}
+  - component: {fileID: 2305186629142942394}
   m_Layer: 0
   m_Name: CameraRoot
   m_TagString: Untagged
@@ -199,6 +231,7 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 8021566378760736807}
+  - {fileID: 3767120015583520193}
   m_Father: {fileID: 5025024130268593442}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &4321190055867494642
@@ -219,6 +252,25 @@ MonoBehaviour:
   _crouchAnchor: {fileID: 7791231246615644494}
   _transitionDuration: 0.3
   _transitionEase: 9
+--- !u!114 &2305186629142942394
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4565918167560153090}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2911f370679119646a2deaadba9ea91c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Core.Interaction.Interactor
+  _inputReader: {fileID: 11400000, guid: 58a01c96d2a7da741a478c7018356970, type: 2}
+  _playerController: {fileID: 3638115632739733604}
+  _raycastOrigin: {fileID: 0}
+  _interactionRange: 3
+  _interactableLayer:
+    serializedVersion: 2
+    m_Bits: 4294967295
 --- !u!1 &4669370942135681215
 GameObject:
   m_ObjectHideFlags: 0
@@ -261,9 +313,10 @@ GameObject:
   - component: {fileID: 5025024130268593442}
   - component: {fileID: 7649578335686733402}
   - component: {fileID: 3638115632739733604}
+  - component: {fileID: 8582949898757178508}
   m_Layer: 0
   m_Name: Player
-  m_TagString: Untagged
+  m_TagString: Player
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
@@ -332,9 +385,24 @@ MonoBehaviour:
   _cameraRoot: {fileID: 4565918167560153090}
   _animator: {fileID: 7573376245150279100}
   _modelYOffset: 0
-  _maskCooldown: 1.2
+  _maskCooldown: 0.1
   _standingProfile: {fileID: 8582412488961931353}
   _crouchingProfile: {fileID: 7494143564808433945}
+--- !u!114 &8582949898757178508
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4927445955940218606}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c135f4aec1b38a949a9190d9e401dd9c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerGrabber
+  _holdPoint: {fileID: 3767120015583520193}
+  _moveSpeed: 10
+  _throwForce: 5
 --- !u!1 &5807652625849602043
 GameObject:
   m_ObjectHideFlags: 0

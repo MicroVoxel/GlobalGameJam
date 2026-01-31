@@ -5,35 +5,37 @@ namespace Core.World
 {
     public enum ObjectRealityType
     {
-        VisibleInRealityOnly, // เห็นตอนถอดหน้ากาก (เช่น กำแพงปิดทาง)
-        VisibleInMaskOnly     // เห็นตอนใส่หน้ากาก (เช่น ทางลับ)
+        VisibleInRealityOnly,
+        VisibleInMaskOnly
     }
 
-    [RequireComponent(typeof(Collider))] // บังคับว่าต้องมี Collider
+    [RequireComponent(typeof(Collider))]
     public class DualObject : MonoBehaviour
     {
         [SerializeField] private ObjectRealityType _type;
 
         private Collider _collider;
-        private Renderer _renderer;
+        private Rigidbody _rb;
+        private bool _initialKinematicState;
 
         private void Awake()
         {
             _collider = GetComponent<Collider>();
-            _renderer = GetComponent<Renderer>();
+            _rb = GetComponent<Rigidbody>();
 
-            // Setup Layer อัตโนมัติตาม Type (ป้องกัน Human Error ลืมตั้ง Layer)
+            if (_rb != null)
+            {
+                _initialKinematicState = _rb.isKinematic;
+            }
+
             AssignLayerAutomatically();
         }
 
         private void Start()
         {
-            // Subscribe Event
             if (RealityManager.Instance != null)
             {
                 RealityManager.Instance.OnRealityChanged += HandleRealityChange;
-
-                // Sync สถานะเริ่มต้นให้ตรงกับ Manager ทันที
                 HandleRealityChange(RealityManager.Instance.IsMaskEquipped);
             }
         }
@@ -46,36 +48,60 @@ namespace Core.World
             }
         }
 
+        // [New] Helper Function สำหรับให้คนอื่นเช็คสถานะ
+        public bool ShouldBeActive(bool isMaskEquipped)
+        {
+            if (_type == ObjectRealityType.VisibleInRealityOnly)
+                return !isMaskEquipped;
+
+            if (_type == ObjectRealityType.VisibleInMaskOnly)
+                return isMaskEquipped;
+
+            return true;
+        }
+
         private void AssignLayerAutomatically()
         {
-            // Layer 6 = RealityObject, Layer 7 = MaskObject (ต้องตั้งใน Unity Inspector ให้ตรง)
+            int realityLayerIndex = LayerMask.NameToLayer("RealityObject");
+            int maskLayerIndex = LayerMask.NameToLayer("MaskObject");
+
+            if (realityLayerIndex == -1 || maskLayerIndex == -1) return;
+
             if (_type == ObjectRealityType.VisibleInRealityOnly)
-                gameObject.layer = LayerMask.NameToLayer("RealityObject");
+                gameObject.layer = realityLayerIndex;
             else
-                gameObject.layer = LayerMask.NameToLayer("MaskObject");
+                gameObject.layer = maskLayerIndex;
+
+            foreach (Transform child in transform)
+            {
+                child.gameObject.layer = gameObject.layer;
+            }
         }
 
         private void HandleRealityChange(bool isMaskEquipped)
         {
-            bool shouldBeActive = false;
+            // ใช้ Function เดียวกันคำนวณ Logic
+            bool shouldBeActive = ShouldBeActive(isMaskEquipped);
 
-            if (_type == ObjectRealityType.VisibleInRealityOnly)
-            {
-                // ถ้าเป็นของโลกจริง จะ Active เมื่อ "ไม่ได้ใส่หน้ากาก"
-                shouldBeActive = !isMaskEquipped;
-            }
-            else if (_type == ObjectRealityType.VisibleInMaskOnly)
-            {
-                // ถ้าเป็นของโลกหน้ากาก จะ Active เมื่อ "ใส่หน้ากาก"
-                shouldBeActive = isMaskEquipped;
-            }
-
-            // Toggle Collider (สำคัญมาก เพื่อให้เดินทะลุได้เมื่อมองไม่เห็น)
             if (_collider != null) _collider.enabled = shouldBeActive;
 
-            // Note: Renderer ไม่ต้องปิดก็ได้เพราะ Camera Culling จัดการให้แล้ว (ประหยัด Performance)
-            // แต่ถ้าอยากชัวร์ หรือใช้กับแสงเงาที่ Culling Mask ไม่ครอบคลุม ก็เปิดบรรทัดล่างได้ครับ
-            // if (_renderer != null) _renderer.enabled = shouldBeActive;
+            if (_rb != null)
+            {
+                if (!shouldBeActive)
+                {
+                    _rb.isKinematic = true;
+                }
+                else
+                {
+                    // ถ้า Layer ปัจจุบันเป็น Ignore Raycast (กำลังถูกถือ) ไม่ต้องคืนค่า Kinematic
+                    // เพราะ GrabbableObject จะจัดการเอง
+                    if (gameObject.layer != LayerMask.NameToLayer("Ignore Raycast"))
+                    {
+                        _rb.isKinematic = _initialKinematicState;
+                        if (!_rb.isKinematic) _rb.WakeUp();
+                    }
+                }
+            }
         }
     }
 }

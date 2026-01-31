@@ -55,7 +55,7 @@ namespace Core.Player
         // 0 = Pocket, 1 = Hand, 2 = Face
         private void MoveMaskTo(int locationIndex)
         {
-            Debug.Log($"🎭 Visuals Moving Mask To Index: {locationIndex}");
+            //Debug.Log($"🎭 Visuals Moving Mask To Index: {locationIndex}");
 
             switch (locationIndex)
             {
