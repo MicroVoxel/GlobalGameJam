@@ -1,6 +1,6 @@
 ﻿using UnityEngine;
 using UnityEngine.Events;
-using Core.Patterns; // เรียกใช้ Singleton ที่เราเคยสร้าง
+using Core.Patterns;
 using Core.Input;
 
 namespace Core.Managers
@@ -12,44 +12,27 @@ namespace Core.Managers
         [SerializeField] private Camera _mainCamera;
 
         [Header("Layer Configuration")]
-        [SerializeField] private LayerMask _defaultLayers; // Layer ที่เห็นตลอด (Default, Ground, Player)
-        [SerializeField] private LayerMask _realityLayer;  // Layer 6
-        [SerializeField] private LayerMask _maskLayer;     // Layer 7
+        [SerializeField] private LayerMask _defaultLayers;
+        [SerializeField] private LayerMask _realityLayer;
+        [SerializeField] private LayerMask _maskLayer;
 
-        // Event ให้คนอื่นมาฟัง (ส่งค่า bool: true=ใส่หน้ากาก, false=ถอด)
         public event UnityAction<bool> OnRealityChanged;
-
         public bool IsMaskEquipped { get; private set; } = false;
 
         private void Start()
         {
             if (_mainCamera == null) _mainCamera = Camera.main;
-
-            // ตั้งค่าเริ่มต้น (ถอดหน้ากาก)
             UpdateCameraCulling();
         }
 
-        private void OnEnable()
-        {
-            if (_inputReader != null)
-                _inputReader.ToggleMaskEvent += ToggleReality;
-        }
-
-        private void OnDisable()
-        {
-            if (_inputReader != null)
-                _inputReader.ToggleMaskEvent -= ToggleReality;
-        }
-
-        // --- Core Logic ---
+        // [Removed] ลบ OnEnable/OnDisable ที่คอยฟัง InputReader ออก
+        // เพราะเราจะย้ายการควบคุม Input ไปที่ PlayerController เพื่อให้รออนิเมชั่นก่อน
 
         public void ToggleReality()
         {
             IsMaskEquipped = !IsMaskEquipped;
 
             UpdateCameraCulling();
-
-            // แจ้งเตือนทุกคนที่ Subscribe (Player, DualObjects)
             OnRealityChanged?.Invoke(IsMaskEquipped);
 
             Debug.Log($"🎭 Reality Switched. Mask Equipped: {IsMaskEquipped}");
@@ -61,12 +44,10 @@ namespace Core.Managers
 
             if (IsMaskEquipped)
             {
-                // ใส่หน้ากาก: เห็น Default + MaskLayer (ซ่อน RealityLayer)
                 _mainCamera.cullingMask = _defaultLayers | _maskLayer;
             }
             else
             {
-                // ถอดหน้ากาก: เห็น Default + RealityLayer (ซ่อน MaskLayer)
                 _mainCamera.cullingMask = _defaultLayers | _realityLayer;
             }
         }

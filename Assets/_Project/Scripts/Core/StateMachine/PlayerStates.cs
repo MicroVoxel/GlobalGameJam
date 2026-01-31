@@ -55,14 +55,14 @@ namespace Core.StateMachine
 
         public override void Enter()
         {
-            // แจ้ง Animator ว่าเลิกหมอบ
-            Controller.SetCrouchAnimation(false);
+            // [Fix] เรียกผ่านฟังก์ชัน SetCrouchState แทนการแก้ตัวแปรตรงๆ
+            // ฟังก์ชันนี้จะจัดการทั้ง IsCrouching = false, Animator, และ Event กล้อง
+            Controller.SetCrouchState(false);
         }
 
         public override void Tick()
         {
             Controller.HandleMovement(1.0f);
-            Controller.SetHeight(Config.StandHeight, Config.CenterOffset);
         }
 
         public override void Exit() { }
@@ -76,15 +76,14 @@ namespace Core.StateMachine
 
         public override void Enter()
         {
-            // แจ้ง Animator ว่ากำลังหมอบ
-            Controller.SetCrouchAnimation(true);
+            // [Fix] เรียกผ่านฟังก์ชัน SetCrouchState แทน
+            Controller.SetCrouchState(true);
         }
 
         public override void Tick()
         {
             float speedRatio = Config.CrouchSpeed / Config.WalkSpeed;
             Controller.HandleMovement(speedRatio);
-            Controller.SetHeight(Config.CrouchHeight, Config.CrouchCenter);
         }
 
         public override void Exit() { }
