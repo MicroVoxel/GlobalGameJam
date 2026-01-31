@@ -1,7 +1,7 @@
 ﻿using UnityEngine;
 using Core.Input;
 using Core.StateMachine;
-using Core.Managers; // [New] เพิ่มการอ้างอิง Manager
+using Core.Managers;
 using System;
 
 namespace Core.Player
@@ -9,7 +9,6 @@ namespace Core.Player
     [RequireComponent(typeof(CharacterController))]
     public class PlayerController : MonoBehaviour
     {
-        // ... (Variables เดิม) ...
         [Header("Dependencies")]
         [SerializeField] private GameInputReader _inputReader;
         [SerializeField] private PlayerConfig _config;
@@ -20,22 +19,48 @@ namespace Core.Player
 
         [Header("Visuals")]
         [SerializeField] private Animator _animator;
+        [SerializeField] private float _modelYOffset = 0f;
 
+        [Header("Animation Settings")]
+        [Tooltip("Cooldown กันกดรัว")]
+        [SerializeField] private float _maskCooldown = 1.5f;
+
+        [Header("Collider Profiles")]
+        [SerializeField] private CapsuleCollider _standingProfile;
+        [SerializeField] private CapsuleCollider _crouchingProfile;
+
+        // Components
         private CharacterController _characterController;
         private PlayerStateMachine _stateMachine;
+
+        // Runtime Variables
         private Vector2 _currentInputVector;
         private Vector2 _currentLookVector;
         private Vector3 _velocity;
         private float _cinemachineTargetPitch;
 
-        // Mask State
+        private bool _isTogglingMask = false;
+        private float _lastToggleTime;
+        private bool _isEquippingSequence;
+
+        private Vector3 _initialModelLocalPos;
+        private Transform _modelTransform;
+
+        public Vector3 Velocity => _characterController.velocity;
+
+        public bool IsCrouching { get; private set; }
         public bool IsMaskEquipped { get; private set; }
+
+        // Events
+        public event Action<int> OnMoveMaskTo;
+        public event Action<bool> OnCrouchChanged;
 
         // Animation Hash IDs
         private int _animIDVelocityX;
         private int _animIDVelocityZ;
         private int _animIDCrouch;
         private int _animIDMask;
+        private int _animIDToggleMask;
         private int _animIDGrounded;
         private int _animIDJump;
 
@@ -50,15 +75,37 @@ namespace Core.Player
 
         private void Start()
         {
-            if (_config == null) Debug.LogError("❌ PlayerConfig is MISSING!");
             if (_animator == null) _animator = GetComponentInChildren<Animator>();
+
+            if (_animator != null)
+            {
+                _modelTransform = _animator.transform;
+                _initialModelLocalPos = _modelTransform.localPosition;
+                ApplyModelOffset();
+            }
+
+            if (_standingProfile != null)
+            {
+                _characterController.center = _standingProfile.center;
+                _characterController.height = _standingProfile.height;
+                _characterController.radius = _standingProfile.radius;
+            }
 
             _stateMachine.Initialize(new PlayerStandingState(this, _stateMachine, _config));
 
-            // [New] Subscribe RealityManager
             if (RealityManager.Instance != null)
-            {
                 RealityManager.Instance.OnRealityChanged += OnRealityStateChanged;
+        }
+
+        private void ApplyModelOffset()
+        {
+            if (_modelTransform != null)
+            {
+                _modelTransform.localPosition = new Vector3(
+                    _initialModelLocalPos.x,
+                    _initialModelLocalPos.y + _modelYOffset,
+                    _initialModelLocalPos.z
+                );
             }
         }
 
@@ -70,9 +117,7 @@ namespace Core.Player
             _inputReader.LookEvent += OnLook;
             _inputReader.JumpEvent += OnJump;
             _inputReader.CrouchEvent += OnCrouch;
-
-            // [Modified] ไม่ต้อง Subscribe ToggleMaskEvent ที่นี่แล้ว เพราะ RealityManager ทำหน้าที่นั้นแทน
-            // หรือถ้าอยากให้ Player เป็นคนสั่ง Manager ก็ทำได้ แต่ให้ Manager ฟัง InputReader ตรงๆ จะ Clean กว่า
+            _inputReader.ToggleMaskEvent += OnToggleMask;
         }
 
         private void OnDisable()
@@ -83,22 +128,23 @@ namespace Core.Player
                 _inputReader.LookEvent -= OnLook;
                 _inputReader.JumpEvent -= OnJump;
                 _inputReader.CrouchEvent -= OnCrouch;
+                _inputReader.ToggleMaskEvent -= OnToggleMask;
             }
 
-            // [New] Unsubscribe RealityManager
             if (RealityManager.Instance != null)
-            {
                 RealityManager.Instance.OnRealityChanged -= OnRealityStateChanged;
-            }
         }
-
-        // ... (Update, LateUpdate, Logic Methods คงเดิม) ...
 
         private void Update()
         {
             _stateMachine.CurrentState?.Tick();
             ApplyGravity();
             UpdateAnimator();
+            UpdateColliderShape();
+
+#if UNITY_EDITOR
+            if (_modelTransform != null) ApplyModelOffset();
+#endif
         }
 
         private void LateUpdate()
@@ -106,34 +152,98 @@ namespace Core.Player
             HandleCameraRotation();
         }
 
+        // --- Animation Event Callbacks (ป้องกัน Loop Event) ---
+
+        public void AnimEvent_GrabMask()
+        {
+            // [Fix] ถ้าจบ Process ไปแล้ว (Finish ทำงานแล้ว) ห้ามรับ Event อื่นอีก
+            // ป้องกันกรณี Animation Loop กลับมาเฟรมแรก
+            if (!_isTogglingMask) return;
+
+            if (_isEquippingSequence)
+                OnMoveMaskTo?.Invoke(1); // ใส่: กระเป๋า -> มือ
+            else
+                OnMoveMaskTo?.Invoke(0); // ถอด: มือ -> กระเป๋า
+        }
+
+        public void AnimEvent_EquipMask()
+        {
+            // [Fix] ป้องกัน Event ทำงานผิดจังหวะ
+            if (!_isTogglingMask) return;
+
+            if (_isEquippingSequence)
+            {
+                OnMoveMaskTo?.Invoke(2); // ใส่: มือ -> หน้า
+                if (!IsMaskEquipped) RealityManager.Instance?.ToggleReality();
+            }
+            else
+            {
+                OnMoveMaskTo?.Invoke(1); // ถอด: หน้า -> มือ
+                if (IsMaskEquipped) RealityManager.Instance?.ToggleReality();
+            }
+        }
+
+        public void AnimEvent_Finish()
+        {
+            // จบการทำงาน ตัดวงจรทันที
+            _isTogglingMask = false;
+
+            // [Failsafe] บังคับตำแหน่งสุดท้ายให้ถูกต้องเสมอ (เผื่อ Event ก่อนหน้าพลาด)
+            if (_isEquippingSequence)
+            {
+                // จบการใส่ -> ต้องจบที่หน้า (2)
+                OnMoveMaskTo?.Invoke(2);
+                if (!IsMaskEquipped) RealityManager.Instance?.ToggleReality();
+            }
+            else
+            {
+                // จบการถอด -> ต้องจบที่กระเป๋า (0)
+                OnMoveMaskTo?.Invoke(0);
+                if (IsMaskEquipped) RealityManager.Instance?.ToggleReality();
+            }
+        }
+
         // --- Logic Methods ---
+
+        private void OnToggleMask()
+        {
+            if (_isTogglingMask || Time.time < _lastToggleTime + _maskCooldown) return;
+
+            _isTogglingMask = true;
+            _lastToggleTime = Time.time;
+
+            _isEquippingSequence = !IsMaskEquipped;
+
+            TriggerToggleMaskAnimation();
+        }
+
+        private void UpdateColliderShape()
+        {
+            if (_standingProfile == null || _crouchingProfile == null) return;
+            CapsuleCollider targetProfile = IsCrouching ? _crouchingProfile : _standingProfile;
+            float transitionSpeed = _config.CrouchTransitionSpeed * Time.deltaTime;
+            _characterController.height = Mathf.Lerp(_characterController.height, targetProfile.height, transitionSpeed);
+            _characterController.center = Vector3.Lerp(_characterController.center, targetProfile.center, transitionSpeed);
+            _characterController.radius = Mathf.Lerp(_characterController.radius, targetProfile.radius, transitionSpeed);
+        }
 
         private void HandleCameraRotation()
         {
-            if (_currentLookVector.sqrMagnitude >= 0.01f)
-            {
-                _cinemachineTargetPitch += _currentLookVector.y * _config.LookSensitivityY * -1.0f;
-                float rotationVelocity = _currentLookVector.x * _config.LookSensitivityX;
-
-                _cinemachineTargetPitch = ClampAngle(_cinemachineTargetPitch, _config.BottomClamp, _config.TopClamp);
-
-                _cameraRoot.transform.localRotation = Quaternion.Euler(_cinemachineTargetPitch, 0.0f, 0.0f);
-                transform.Rotate(Vector3.up * rotationVelocity);
-            }
+            if (_currentLookVector.sqrMagnitude < 0.0001f) return;
+            float topClamp = (_config.TopClamp == 0) ? 90f : _config.TopClamp;
+            float bottomClamp = (_config.BottomClamp == 0) ? -90f : _config.BottomClamp;
+            _cinemachineTargetPitch += _currentLookVector.y * _config.LookSensitivityY * -1.0f;
+            float rotationVelocity = _currentLookVector.x * _config.LookSensitivityX;
+            _cinemachineTargetPitch = ClampAngle(_cinemachineTargetPitch, bottomClamp, topClamp);
+            _cameraRoot.transform.localRotation = Quaternion.Euler(_cinemachineTargetPitch, 0.0f, 0.0f);
+            transform.Rotate(Vector3.up * rotationVelocity);
         }
 
         public void HandleMovement(float speedMultiplier)
         {
             Vector3 inputDirection = transform.right * _currentInputVector.x + transform.forward * _currentInputVector.y;
             inputDirection = inputDirection.normalized;
-
             _characterController.Move(inputDirection * (_config.WalkSpeed * speedMultiplier) * Time.deltaTime);
-        }
-
-        public void SetHeight(float height, Vector3 center)
-        {
-            _characterController.height = Mathf.Lerp(_characterController.height, height, Time.deltaTime * _config.CrouchTransitionSpeed);
-            _characterController.center = Vector3.Lerp(_characterController.center, center, Time.deltaTime * _config.CrouchTransitionSpeed);
         }
 
         private void ApplyGravity()
@@ -156,6 +266,7 @@ namespace Core.Player
             _animIDVelocityZ = Animator.StringToHash("VelocityZ");
             _animIDCrouch = Animator.StringToHash("IsCrouching");
             _animIDMask = Animator.StringToHash("IsMaskEquipped");
+            _animIDToggleMask = Animator.StringToHash("ToggleMask");
             _animIDGrounded = Animator.StringToHash("IsGrounded");
             _animIDJump = Animator.StringToHash("Jump");
         }
@@ -163,31 +274,30 @@ namespace Core.Player
         private void UpdateAnimator()
         {
             if (_animator == null) return;
-
             float targetX = _currentInputVector.x * (_config.WalkSpeed);
             float targetZ = _currentInputVector.y * (_config.WalkSpeed);
-
             _animator.SetFloat(_animIDVelocityX, targetX, 0.1f, Time.deltaTime);
             _animator.SetFloat(_animIDVelocityZ, targetZ, 0.1f, Time.deltaTime);
             _animator.SetBool(_animIDGrounded, _characterController.isGrounded);
         }
 
-        public void SetCrouchAnimation(bool isCrouching)
+        public void SetCrouchState(bool isCrouching)
         {
-            if (_animator) _animator.SetBool(_animIDCrouch, isCrouching);
+            if (IsCrouching == isCrouching) return;
+            IsCrouching = isCrouching;
+            _animator?.SetBool(_animIDCrouch, isCrouching);
+            OnCrouchChanged?.Invoke(isCrouching);
         }
 
-        public void TriggerJumpAnimation()
-        {
-            if (_animator) _animator.SetTrigger(_animIDJump);
-        }
+        public void TriggerJumpAnimation() => _animator?.SetTrigger(_animIDJump);
+        public void TriggerToggleMaskAnimation() => _animator?.SetTrigger(_animIDToggleMask);
 
         private void OnMove(Vector2 input) => _currentInputVector = input;
         private void OnLook(Vector2 input) => _currentLookVector = input;
 
         private void OnJump()
         {
-            if (_characterController.isGrounded)
+            if (_characterController.isGrounded && !IsCrouching)
             {
                 _velocity.y = Mathf.Sqrt(_config.JumpHeight * -2f * _config.Gravity);
                 TriggerJumpAnimation();
@@ -202,13 +312,10 @@ namespace Core.Player
                 _stateMachine.ChangeState(new PlayerStandingState(this, _stateMachine, _config));
         }
 
-        // [New] Handle Event จาก RealityManager
         private void OnRealityStateChanged(bool isEquipped)
         {
             IsMaskEquipped = isEquipped;
             if (_animator) _animator.SetBool(_animIDMask, IsMaskEquipped);
-
-            // อาจจะเล่นเสียงใส่หน้ากากตรงนี้ได้
         }
     }
 }

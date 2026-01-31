@@ -15,17 +15,18 @@ MonoBehaviour:
   WalkSpeed: 4
   CrouchSpeed: 2
   SmoothTime: 0.1
-  LookSensitivityX: 1
-  LookSensitivityY: 1
+  LookSensitivityX: 0.5
+  LookSensitivityY: 0.5
   TopClamp: 90
   BottomClamp: -90
   Gravity: -15
+  JumpHeight: 1.2
   GroundCheckRadius: 0.2
   GroundLayer:
     serializedVersion: 2
     m_Bits: 1
-  StandHeight: 2
+  StandHeight: 1
   CrouchHeight: 1
   CrouchTransitionSpeed: 10
-  CenterOffset: {x: 0, y: 0, z: 0}
-  CrouchCenter: {x: 0, y: 0.5, z: 0}
+  CenterOffset: {x: 0, y: 0.5, z: 0}
+  CrouchCenter: {x: 0, y: -1, z: 0}
