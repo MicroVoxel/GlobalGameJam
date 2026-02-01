@@ -1,5 +1,6 @@
 ﻿using UnityEngine;
 using Core.World;
+using Core.Interaction; // ต้องใช้เพื่อเช็ค GrabbableObject
 using DG.Tweening;
 
 namespace Content.Puzzles
@@ -11,25 +12,33 @@ namespace Content.Puzzles
         [SerializeField] private ObjectRealityType _targetReality;
 
         [Header("Visuals")]
-        [SerializeField] private Transform _visualFeedback; // เช่น แท่นเรืองแสง
-        [SerializeField] private float _cooldown = 2.0f; // กันเปลี่ยนกลับไปมาเร็วเกิน
+        [SerializeField] private Transform _visualFeedback;
+        [SerializeField] private float _cooldown = 2.0f;
 
         private float _lastProcessTime;
 
-        private void OnTriggerEnter(Collider other)
+        // [Changed] เปลี่ยนจาก OnTriggerEnter เป็น OnTriggerStay
+        // เพื่อให้เช็คตลอดเวลาที่วัตถุแช่อยู่ใน Trigger
+        private void OnTriggerStay(Collider other)
         {
             if (Time.time < _lastProcessTime + _cooldown) return;
 
-            // ตรวจสอบว่าเป็นวัตถุที่สลับโลกได้หรือไม่ (ต้องมี DualObject script)
-            DualObject dualObj = other.GetComponent<DualObject>();
+            // 1. ต้องมี Rigidbody (ของที่ขยับได้)
+            if (other.attachedRigidbody == null) return;
 
-            // ต้องเป็นวัตถุที่มี Rigidbody (ของที่ถือมาวาง) และยังไม่ได้อยู่ในโลกเป้าหมาย
-            if (dualObj != null && other.attachedRigidbody != null)
+            // 2. [Fix] ต้องไม่ถูกถืออยู่ (IsHeld == false)
+            // ลองดึง Component GrabbableObject ออกมาเช็ค
+            GrabbableObject grabbable = other.GetComponent<GrabbableObject>();
+            if (grabbable != null && grabbable.IsHeld)
             {
-                if (dualObj.CurrentType != _targetReality)
-                {
-                    ProcessObject(dualObj);
-                }
+                return; // ถ้าถืออยู่ ห้ามเปลี่ยนมิติ
+            }
+
+            // 3. ตรวจสอบว่าเป็น DualObject และยังไม่ได้อยู่โลกเป้าหมาย
+            DualObject dualObj = other.GetComponent<DualObject>();
+            if (dualObj != null && dualObj.CurrentType != _targetReality)
+            {
+                ProcessObject(dualObj);
             }
         }
 
@@ -37,7 +46,6 @@ namespace Content.Puzzles
         {
             _lastProcessTime = Time.time;
 
-            // Visual Feedback: ย่อขยายแท่นนิดหน่อยให้รู้ว่าทำงาน
             if (_visualFeedback)
             {
                 _visualFeedback.DOPunchScale(Vector3.one * 0.1f, 0.5f);
@@ -45,11 +53,7 @@ namespace Content.Puzzles
 
             Debug.Log($"🌀 Transforming object '{obj.name}' to World: {_targetReality}");
 
-            // สั่งเปลี่ยนมิติของวัตถุ
-            // (ต้องมั่นใจว่า DualObject.cs มีฟังก์ชัน SetRealityType แล้วตามที่เคยคุยกัน)
             obj.SetRealityType(_targetReality);
-
-            // Effect เสียงวาร์ปควรใส่ตรงนี้
         }
     }
 }

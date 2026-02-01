@@ -12,11 +12,11 @@ GameObject:
   - component: {fileID: 8581458273487451693}
   - component: {fileID: 6705190782069239832}
   - component: {fileID: 5771535122437912493}
+  - component: {fileID: 8564863269139838178}
+  - component: {fileID: 3989634577006234735}
   - component: {fileID: 6691710319927715239}
   - component: {fileID: 8895718318160774961}
-  - component: {fileID: 8564863269139838178}
   - component: {fileID: 2795753009275885675}
-  - component: {fileID: 3989634577006234735}
   m_Layer: 0
   m_Name: Block
   m_TagString: Untagged
@@ -305,7 +305,6 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: c22777d6e868e4f2fb421913386b154e, type: 2}
   - {fileID: 2100000, guid: 086ac8ebe84a2d345b5b9eb366c85425, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
@@ -328,29 +327,7 @@ MeshRenderer:
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 0
-  m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
---- !u!33 &6691710319927715239
-MeshFilter:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6487596396262297140}
-  m_Mesh: {fileID: 0}
---- !u!114 &8895718318160774961
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6487596396262297140}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 39894b245f80f0c4b860763338eafdca, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Core.World.DualObject
-  _type: 1
 --- !u!54 &8564863269139838178
 Rigidbody:
   m_ObjectHideFlags: 0
@@ -378,19 +355,6 @@ Rigidbody:
   m_Interpolate: 0
   m_Constraints: 0
   m_CollisionDetection: 0
---- !u!114 &2795753009275885675
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6487596396262297140}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 7ffbf60aaf1ce39479f7542c84fb164b, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Core.Interaction.GrabbableObject
-  _promptText: Hold E to Grab
 --- !u!65 &3989634577006234735
 BoxCollider:
   m_ObjectHideFlags: 0
@@ -412,3 +376,37 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
+--- !u!33 &6691710319927715239
+MeshFilter:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6487596396262297140}
+  m_Mesh: {fileID: 0}
+--- !u!114 &8895718318160774961
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6487596396262297140}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 39894b245f80f0c4b860763338eafdca, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Core.World.DualObject
+  _type: 1
+--- !u!114 &2795753009275885675
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6487596396262297140}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7ffbf60aaf1ce39479f7542c84fb164b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Core.Interaction.GrabbableObject
+  _promptText: Hold E to Grab

@@ -2,10 +2,10 @@
 using UnityEngine.Events;
 using DG.Tweening;
 using System.Collections.Generic;
+using Core.Interaction; // ต้องใช้เพื่อเช็ค GrabbableObject
 
 namespace Core.Mechanics
 {
-    [RequireComponent(typeof(AudioSource))] // เพิ่ม AudioSource
     public class PressurePlate : MonoBehaviour
     {
         [Header("Settings")]
@@ -16,10 +16,6 @@ namespace Core.Mechanics
         [SerializeField] private float _depressionDepth = 0.02f;
         [SerializeField] private float _animDuration = 0.2f;
 
-        [Header("Audio")]
-        [SerializeField] private AudioClip _activateSound;
-        [SerializeField] private AudioClip _deactivateSound;
-
         [Header("Events")]
         public UnityEvent OnPlateActivated;
         public UnityEvent OnPlateDeactivated;
@@ -27,12 +23,6 @@ namespace Core.Mechanics
         private List<Collider> _collidersOnPlate = new List<Collider>();
         private Vector3 _initialLocalPos;
         private bool _isActivated = false;
-        private AudioSource _audioSource;
-
-        private void Awake()
-        {
-            _audioSource = GetComponent<AudioSource>();
-        }
 
         private void Start()
         {
@@ -50,8 +40,7 @@ namespace Core.Mechanics
             {
                 _collidersOnPlate.Add(other);
             }
-
-            EvaluateState();
+            // ไม่เรียก EvaluateState ที่นี่แล้ว ให้ Update จัดการ
         }
 
         private void OnTriggerExit(Collider other)
@@ -60,15 +49,38 @@ namespace Core.Mechanics
             {
                 _collidersOnPlate.Remove(other);
             }
-
             _collidersOnPlate.RemoveAll(c => c == null);
+        }
 
+        // [New] ใช้ Update เพื่อตรวจสอบสถานะ "การถือ" แบบ Realtime
+        private void Update()
+        {
             EvaluateState();
         }
 
         private void EvaluateState()
         {
-            bool shouldBeActive = _collidersOnPlate.Count > 0;
+            // นับจำนวนของที่อยู่บนแท่น "และไม่ได้ถูกถืออยู่"
+            int validCount = 0;
+
+            foreach (var col in _collidersOnPlate)
+            {
+                if (col == null) continue;
+
+                // เช็คว่าเป็น GrabbableObject ที่ถูกถืออยู่ไหม
+                GrabbableObject grabbable = col.GetComponent<GrabbableObject>();
+
+                // [Fix] ถ้ามี Component Grabbable และถูกถืออยู่ -> ไม่นับเป็นน้ำหนัก
+                if (grabbable != null && grabbable.IsHeld)
+                {
+                    continue;
+                }
+
+                // ถ้าผ่านเงื่อนไข ถือว่าเป็นน้ำหนักกดทับ
+                validCount++;
+            }
+
+            bool shouldBeActive = validCount > 0;
 
             if (shouldBeActive && !_isActivated)
             {
@@ -101,9 +113,6 @@ namespace Core.Mechanics
                 _plateVisual.DOLocalMoveY(_initialLocalPos.y - _depressionDepth, _animDuration).SetEase(Ease.OutQuad);
             }
 
-            // Play Sound
-            if (_audioSource && _activateSound) _audioSource.PlayOneShot(_activateSound);
-
             OnPlateActivated?.Invoke();
         }
 
@@ -117,9 +126,6 @@ namespace Core.Mechanics
                 _plateVisual.DOKill();
                 _plateVisual.DOLocalMoveY(_initialLocalPos.y, _animDuration).SetEase(Ease.OutQuad);
             }
-
-            // Play Sound
-            if (_audioSource && _deactivateSound) _audioSource.PlayOneShot(_deactivateSound);
 
             OnPlateDeactivated?.Invoke();
         }
