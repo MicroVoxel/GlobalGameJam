@@ -12,6 +12,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f858e2b6dd580dc448adf0a1e6b3bd90, type: 3}
   m_Name: PlayerConfig
   m_EditorClassIdentifier: Assembly-CSharp::Core.Player.PlayerConfig
+  CanJump: 0
+  CanCrouch: 0
   WalkSpeed: 4
   CrouchSpeed: 2
   SmoothTime: 0.1

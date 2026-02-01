@@ -5,6 +5,12 @@ namespace Core.Player
     [CreateAssetMenu(fileName = "PlayerConfig", menuName = "Game/Player Config")]
     public class PlayerConfig : ScriptableObject
     {
+        [Header("Capabilities")]
+        [Tooltip("อนุญาตให้กระโดดหรือไม่")]
+        public bool CanJump = true;
+        [Tooltip("อนุญาตให้ย่อตัว/หมอบหรือไม่")]
+        public bool CanCrouch = true;
+
         [Header("Movement")]
         public float WalkSpeed = 4.0f;
         public float CrouchSpeed = 2.0f;
@@ -18,7 +24,7 @@ namespace Core.Player
 
         [Header("Physics")]
         public float Gravity = -15.0f;
-        public float JumpHeight = 1.2f; // [New] ความสูงในการกระโดด
+        public float JumpHeight = 1.2f;
         public float GroundCheckRadius = 0.2f;
         public LayerMask GroundLayer;
 

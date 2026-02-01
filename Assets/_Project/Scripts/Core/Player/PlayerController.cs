@@ -42,6 +42,7 @@ namespace Core.Player
         private bool _isTogglingMask = false;
         private float _lastToggleTime;
         private bool _isEquippingSequence;
+        private bool _inputLocked = false;
 
         private Vector3 _initialModelLocalPos;
         private Transform _modelTransform;
@@ -97,6 +98,23 @@ namespace Core.Player
                 RealityManager.Instance.OnRealityChanged += OnRealityStateChanged;
         }
 
+        public void SetControlLock(bool isLocked)
+        {
+            _inputLocked = isLocked;
+            if (isLocked)
+            {
+                _currentInputVector = Vector2.zero;
+                UpdateAnimator();
+            }
+        }
+
+        public async Cysharp.Threading.Tasks.UniTask ForceUnequip()
+        {
+            if (!IsMaskEquipped || _isTogglingMask) return;
+            OnToggleMask();
+            await Cysharp.Threading.Tasks.UniTask.Delay(TimeSpan.FromSeconds(_maskCooldown));
+        }
+
         private void ApplyModelOffset()
         {
             if (_modelTransform != null)
@@ -149,65 +167,52 @@ namespace Core.Player
 
         private void LateUpdate()
         {
-            HandleCameraRotation();
+            if (!_inputLocked) HandleCameraRotation();
         }
-
-        // --- Animation Event Callbacks (ป้องกัน Loop Event) ---
 
         public void AnimEvent_GrabMask()
         {
-            // [Fix] ถ้าจบ Process ไปแล้ว (Finish ทำงานแล้ว) ห้ามรับ Event อื่นอีก
-            // ป้องกันกรณี Animation Loop กลับมาเฟรมแรก
             if (!_isTogglingMask) return;
 
-            if (_isEquippingSequence)
-                OnMoveMaskTo?.Invoke(1); // ใส่: กระเป๋า -> มือ
-            else
-                OnMoveMaskTo?.Invoke(0); // ถอด: มือ -> กระเป๋า
+            if (_isEquippingSequence) OnMoveMaskTo?.Invoke(1);
+            else OnMoveMaskTo?.Invoke(0);
         }
 
         public void AnimEvent_EquipMask()
         {
-            // [Fix] ป้องกัน Event ทำงานผิดจังหวะ
             if (!_isTogglingMask) return;
 
             if (_isEquippingSequence)
             {
-                OnMoveMaskTo?.Invoke(2); // ใส่: มือ -> หน้า
+                OnMoveMaskTo?.Invoke(2);
                 if (!IsMaskEquipped) RealityManager.Instance?.ToggleReality();
             }
             else
             {
-                OnMoveMaskTo?.Invoke(1); // ถอด: หน้า -> มือ
+                OnMoveMaskTo?.Invoke(1);
                 if (IsMaskEquipped) RealityManager.Instance?.ToggleReality();
             }
         }
 
         public void AnimEvent_Finish()
         {
-            // จบการทำงาน ตัดวงจรทันที
             _isTogglingMask = false;
 
-            // [Failsafe] บังคับตำแหน่งสุดท้ายให้ถูกต้องเสมอ (เผื่อ Event ก่อนหน้าพลาด)
             if (_isEquippingSequence)
             {
-                // จบการใส่ -> ต้องจบที่หน้า (2)
                 OnMoveMaskTo?.Invoke(2);
                 if (!IsMaskEquipped) RealityManager.Instance?.ToggleReality();
             }
             else
             {
-                // จบการถอด -> ต้องจบที่กระเป๋า (0)
                 OnMoveMaskTo?.Invoke(0);
                 if (IsMaskEquipped) RealityManager.Instance?.ToggleReality();
             }
         }
 
-        // --- Logic Methods ---
-
         private void OnToggleMask()
         {
-            if (_isTogglingMask || Time.time < _lastToggleTime + _maskCooldown) return;
+            if (_inputLocked || _isTogglingMask || Time.time < _lastToggleTime + _maskCooldown) return;
 
             _isTogglingMask = true;
             _lastToggleTime = Time.time;
@@ -241,6 +246,12 @@ namespace Core.Player
 
         public void HandleMovement(float speedMultiplier)
         {
+            if (_inputLocked)
+            {
+                _characterController.Move(Vector3.zero);
+                return;
+            }
+
             Vector3 inputDirection = transform.right * _currentInputVector.x + transform.forward * _currentInputVector.y;
             inputDirection = inputDirection.normalized;
             _characterController.Move(inputDirection * (_config.WalkSpeed * speedMultiplier) * Time.deltaTime);
@@ -274,8 +285,10 @@ namespace Core.Player
         private void UpdateAnimator()
         {
             if (_animator == null) return;
-            float targetX = _currentInputVector.x * (_config.WalkSpeed);
-            float targetZ = _currentInputVector.y * (_config.WalkSpeed);
+
+            float targetX = _inputLocked ? 0 : _currentInputVector.x * (_config.WalkSpeed);
+            float targetZ = _inputLocked ? 0 : _currentInputVector.y * (_config.WalkSpeed);
+
             _animator.SetFloat(_animIDVelocityX, targetX, 0.1f, Time.deltaTime);
             _animator.SetFloat(_animIDVelocityZ, targetZ, 0.1f, Time.deltaTime);
             _animator.SetBool(_animIDGrounded, _characterController.isGrounded);
@@ -283,6 +296,7 @@ namespace Core.Player
 
         public void SetCrouchState(bool isCrouching)
         {
+            if (_inputLocked) return;
             if (IsCrouching == isCrouching) return;
             IsCrouching = isCrouching;
             _animator?.SetBool(_animIDCrouch, isCrouching);
@@ -297,6 +311,11 @@ namespace Core.Player
 
         private void OnJump()
         {
+            if (_inputLocked) return;
+
+            // [Check] ตรวจสอบ Config ว่าอนุญาตให้กระโดดไหม
+            if (!_config.CanJump) return;
+
             if (_characterController.isGrounded && !IsCrouching)
             {
                 _velocity.y = Mathf.Sqrt(_config.JumpHeight * -2f * _config.Gravity);
@@ -306,6 +325,11 @@ namespace Core.Player
 
         private void OnCrouch()
         {
+            if (_inputLocked) return;
+
+            // [Check] ตรวจสอบ Config ว่าอนุญาตให้ย่อไหม
+            if (!_config.CanCrouch) return;
+
             if (_stateMachine.CurrentState is PlayerStandingState)
                 _stateMachine.ChangeState(new PlayerCrouchingState(this, _stateMachine, _config));
             else if (_stateMachine.CurrentState is PlayerCrouchingState)

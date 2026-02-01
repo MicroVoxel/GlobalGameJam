@@ -9,11 +9,11 @@ namespace Core.Managers
     public class LevelManager : Singleton<LevelManager>
     {
         [Header("Settings")]
-        [SerializeField] private SpawnPoint _defaultSpawnPoint; // จุดเกิดเริ่มต้นของฉาก
+        [SerializeField] private SpawnPoint _defaultSpawnPoint;
         [SerializeField] private float _respawnDelay = 1.0f;
 
         private PlayerController _player;
-        private SpawnPoint _currentCheckpoint; // [New] จำจุดเกิดปัจจุบัน
+        private SpawnPoint _currentCheckpoint;
 
         protected override void Awake()
         {
@@ -23,23 +23,17 @@ namespace Core.Managers
 
         private void Start()
         {
-            // หาจุดเกิดเริ่มต้นถ้าไม่ได้ลากใส่
             if (_defaultSpawnPoint == null)
             {
                 _defaultSpawnPoint = FindFirstObjectByType<SpawnPoint>();
             }
-
-            // เริ่มต้นเซ็ตให้จุด Default เป็นจุดปัจจุบัน
             SetCheckpoint(_defaultSpawnPoint);
         }
 
-        // [New] ฟังก์ชันบันทึกจุดเกิดใหม่
         public void SetCheckpoint(SpawnPoint newPoint)
         {
             if (newPoint == null) return;
 
-            // (Optional) เช็ค Priority: ป้องกันการ Save ทับจุดที่ไกลกว่าด้วยจุดที่ใกล้กว่า (ถ้าต้องการ)
-            // ถ้า Checkpoint ใหม่ Priority ต่ำกว่าอันปัจจุบัน ไม่ต้อง Save
             if (_currentCheckpoint != null && newPoint.Priority < _currentCheckpoint.Priority)
             {
                 return;
@@ -49,7 +43,6 @@ namespace Core.Managers
             {
                 _currentCheckpoint = newPoint;
                 Debug.Log($"🚩 Checkpoint Updated: {newPoint.name}");
-                // ตรงนี้ใส่เสียงหรือ Particle ตอนเก็บ Checkpoint ได้
             }
         }
 
@@ -68,10 +61,8 @@ namespace Core.Managers
         {
             if (_player == null) return;
 
-            // [Modified] เลือกใช้ _currentCheckpoint ถ้ามี, ถ้าไม่มีใช้ Default
             SpawnPoint targetSpawn = _currentCheckpoint != null ? _currentCheckpoint : _defaultSpawnPoint;
 
-            // ถ้าหาไม่เจอเลยจริงๆ ให้ใช้ 0,0,0
             Vector3 targetPos = targetSpawn != null ? targetSpawn.transform.position : Vector3.zero;
             Quaternion targetRot = targetSpawn != null ? targetSpawn.transform.rotation : Quaternion.identity;
 
@@ -86,18 +77,29 @@ namespace Core.Managers
             Debug.Log($"🔄 Player Respawned at {(targetSpawn ? targetSpawn.name : "World Origin")}");
         }
 
+        // [Updated] ปรับปรุง Logic การ Respawn ของ
         public void RespawnObject(Rigidbody rb)
         {
+            // 1. เช็คก่อนว่าวัตถุมีระบบจำตำแหน่งเริ่มต้นไหม (Respawnable)
+            var respawnable = rb.GetComponent<Respawnable>();
+            if (respawnable != null)
+            {
+                respawnable.Respawn();
+                return; // จบงาน กลับจุดเดิม
+            }
+
+            // 2. ถ้าไม่มี ให้ใช้ Logic เดิม (ส่งไปหาผู้เล่นที่ Checkpoint)
             rb.linearVelocity = Vector3.zero;
             rb.angularVelocity = Vector3.zero;
 
-            // ส่งของไปที่จุดเกิดล่าสุดเหมือนกัน
             SpawnPoint targetSpawn = _currentCheckpoint != null ? _currentCheckpoint : _defaultSpawnPoint;
 
             if (targetSpawn != null)
             {
+                // ส่งไปที่จุดเกิดผู้เล่น + สูงขึ้นหน่อยจะได้ไม่ทับคน
                 rb.position = targetSpawn.transform.position + Vector3.up * 2;
                 rb.rotation = targetSpawn.transform.rotation;
+                Debug.Log($"📦 Object '{rb.name}' moved to Checkpoint (No Respawnable script found).");
             }
         }
     }
