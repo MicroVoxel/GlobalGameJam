@@ -18,6 +18,11 @@ namespace Core.World
         private Rigidbody _rb;
         private bool _initialKinematicState;
 
+        // [New] เก็บ Reality Manager ไว้ใช้งาน
+        private RealityManager _manager;
+
+        public ObjectRealityType CurrentType => _type;
+
         private void Awake()
         {
             _collider = GetComponent<Collider>();
@@ -33,22 +38,43 @@ namespace Core.World
 
         private void Start()
         {
-            if (RealityManager.Instance != null)
+            _manager = RealityManager.Instance;
+            if (_manager != null)
             {
-                RealityManager.Instance.OnRealityChanged += HandleRealityChange;
-                HandleRealityChange(RealityManager.Instance.IsMaskEquipped);
+                _manager.OnRealityChanged += HandleRealityChange;
+                HandleRealityChange(_manager.IsMaskEquipped);
             }
         }
 
         private void OnDestroy()
         {
-            if (RealityManager.Instance != null)
+            if (_manager != null)
             {
-                RealityManager.Instance.OnRealityChanged -= HandleRealityChange;
+                _manager.OnRealityChanged -= HandleRealityChange;
             }
         }
 
-        // [New] Helper Function สำหรับให้คนอื่นเช็คสถานะ
+        // [New] ฟังก์ชันเปลี่ยนมิติของวัตถุ (Runtime)
+        public void SwitchRealityType()
+        {
+            if (_type == ObjectRealityType.VisibleInRealityOnly)
+                SetRealityType(ObjectRealityType.VisibleInMaskOnly);
+            else
+                SetRealityType(ObjectRealityType.VisibleInRealityOnly);
+        }
+
+        public void SetRealityType(ObjectRealityType newType)
+        {
+            _type = newType;
+            AssignLayerAutomatically();
+
+            // อัปเดตสถานะทันทีให้ตรงกับโลกปัจจุบัน
+            if (_manager != null)
+            {
+                HandleRealityChange(_manager.IsMaskEquipped);
+            }
+        }
+
         public bool ShouldBeActive(bool isMaskEquipped)
         {
             if (_type == ObjectRealityType.VisibleInRealityOnly)
@@ -80,7 +106,6 @@ namespace Core.World
 
         private void HandleRealityChange(bool isMaskEquipped)
         {
-            // ใช้ Function เดียวกันคำนวณ Logic
             bool shouldBeActive = ShouldBeActive(isMaskEquipped);
 
             if (_collider != null) _collider.enabled = shouldBeActive;
@@ -93,8 +118,6 @@ namespace Core.World
                 }
                 else
                 {
-                    // ถ้า Layer ปัจจุบันเป็น Ignore Raycast (กำลังถูกถือ) ไม่ต้องคืนค่า Kinematic
-                    // เพราะ GrabbableObject จะจัดการเอง
                     if (gameObject.layer != LayerMask.NameToLayer("Ignore Raycast"))
                     {
                         _rb.isKinematic = _initialKinematicState;
