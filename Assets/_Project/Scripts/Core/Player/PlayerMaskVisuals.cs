@@ -9,38 +9,35 @@ namespace Core.Player
         [SerializeField] private PlayerController _playerController;
         [SerializeField] private Transform _maskObject;
 
+        [Tooltip("Renderer ของตัวหน้ากาก (ใช้สำหรับซ่อนตอนใส่เสร็จแล้วไม่ให้บังจอ)")]
+        [SerializeField] private Renderer _maskRenderer; // [New]
+
         [Header("Anchors (Parents)")]
-        [Tooltip("จุดอ้างอิงตอนเก็บหน้ากาก (เช่น เอว)")]
         [SerializeField] private Transform _pocketParent;
-
-        [Tooltip("จุดอ้างอิงบนมือ (Hand Bone ของ Model) - ต้องมี!")]
         [SerializeField] private Transform _handParent;
-
-        [Tooltip("จุดอ้างอิงบนหน้า (CameraRoot หรือ Head Bone)")]
         [SerializeField] private Transform _faceParent;
 
         [Header("Animation Settings")]
-        [SerializeField] private float _moveSpeed = 0.15f; // ความเร็วในการพุ่งเข้าหา Anchor
+        [SerializeField] private float _moveSpeed = 0.15f;
         [SerializeField] private Ease _moveEase = Ease.OutQuad;
 
         private void Start()
         {
             if (_playerController == null) _playerController = GetComponentInParent<PlayerController>();
 
+            // หา Renderer อัตโนมัติถ้าไม่ได้ลากมา (กันลืม)
+            if (_maskRenderer == null && _maskObject != null)
+                _maskRenderer = _maskObject.GetComponentInChildren<Renderer>();
+
             if (_maskObject != null && _pocketParent != null)
             {
-                // เริ่มต้นให้หน้ากากอยู่ที่กระเป๋าแบบ Snap (ไม่ต้อง Tween)
                 SnapTo(_pocketParent);
+                ShowMask(); // เริ่มต้นต้องเห็น
             }
 
             if (_playerController != null)
             {
                 _playerController.OnMoveMaskTo += MoveMaskTo;
-                Debug.Log("✅ PlayerMaskVisuals: Subscribed to Controller");
-            }
-            else
-            {
-                Debug.LogError("❌ PlayerMaskVisuals: PlayerController not found!");
             }
         }
 
@@ -52,43 +49,41 @@ namespace Core.Player
             }
         }
 
-        // 0 = Pocket, 1 = Hand, 2 = Face
         private void MoveMaskTo(int locationIndex)
         {
-            //Debug.Log($"🎭 Visuals Moving Mask To Index: {locationIndex}");
-
             switch (locationIndex)
             {
-                case 0: // Pocket
+                case 0: // Pocket (เก็บลงกระเป๋า)
+                    ShowMask(); // ต้องเห็น
                     AttachTo(_pocketParent);
                     break;
-                case 1: // Hand
+                case 1: // Hand (อยู่ในมือ)
+                    ShowMask(); // ต้องเห็น
                     AttachTo(_handParent);
                     break;
-                case 2: // Face
-                    AttachTo(_faceParent);
+                case 2: // Face (ใส่หน้า)
+                    // ย้ายไปที่หน้า แล้วสั่งซ่อนเมื่อ Tween จบ (hideOnComplete = true)
+                    AttachTo(_faceParent, hideOnComplete: true);
                     break;
             }
         }
 
-        private void AttachTo(Transform parent)
+        private void AttachTo(Transform parent, bool hideOnComplete = false)
         {
-            if (_maskObject == null || parent == null)
-            {
-                Debug.LogWarning($"⚠️ Cannot attach mask. Mask: {_maskObject}, Parent: {parent}");
-                return;
-            }
+            if (_maskObject == null || parent == null) return;
 
-            // ฆ่า Tween เก่าก่อน
             _maskObject.DOKill();
-
-            // 1. ย้าย Parent ทันที เพื่อให้ Transform เกาะติดไปกับการเคลื่อนไหวของ Parent นั้นๆ
             _maskObject.SetParent(parent);
 
-            // 2. ใช้ DOTween เลื่อน Local Position/Rotation เข้าหา 0,0,0 ของ Parent ใหม่
-            // เพื่อให้ดูเหมือนมือหยิบไป หรือแปะลงหน้า
-            _maskObject.DOLocalMove(Vector3.zero, _moveSpeed).SetEase(_moveEase);
+            // Tween เข้าหาตำแหน่ง
+            var moveTween = _maskObject.DOLocalMove(Vector3.zero, _moveSpeed).SetEase(_moveEase);
             _maskObject.DOLocalRotate(Vector3.zero, _moveSpeed).SetEase(_moveEase);
+
+            // ถ้าเป็นจังหวะแปะหน้า ให้ซ่อนโมเดลเมื่อขยับเสร็จ
+            if (hideOnComplete)
+            {
+                moveTween.OnComplete(() => HideMask());
+            }
         }
 
         private void SnapTo(Transform parent)
@@ -97,6 +92,16 @@ namespace Core.Player
             _maskObject.SetParent(parent);
             _maskObject.localPosition = Vector3.zero;
             _maskObject.localRotation = Quaternion.identity;
+        }
+
+        private void ShowMask()
+        {
+            if (_maskRenderer != null) _maskRenderer.enabled = true;
+        }
+
+        private void HideMask()
+        {
+            if (_maskRenderer != null) _maskRenderer.enabled = false;
         }
     }
 }
