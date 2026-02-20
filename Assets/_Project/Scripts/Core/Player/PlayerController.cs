@@ -25,6 +25,11 @@ namespace Core.Player
         [Tooltip("Cooldown กันกดรัว")]
         [SerializeField] private float _maskCooldown = 1.5f;
 
+        [Header("Animation Safeties")]
+        [Tooltip("เวลาสูงสุดที่ยอมให้แอนิเมชันเปลี่ยนหน้ากากเล่น (กันบั๊กค้าง)")]
+        [SerializeField] private float _maxMaskToggleTime = 2f;
+        private float _maskToggleTimer;
+
         [Header("Collider Profiles")]
         [SerializeField] private CapsuleCollider _standingProfile;
         [SerializeField] private CapsuleCollider _crouchingProfile;
@@ -96,6 +101,9 @@ namespace Core.Player
 
             if (RealityManager.Instance != null)
                 RealityManager.Instance.OnRealityChanged += OnRealityStateChanged;
+
+            // [Fix WebGL/Scene Load Bug] บังคับปลดล็อคการควบคุมทุกครั้งที่เริ่มตัวละครใหม่
+            SetControlLock(false);
         }
 
         public void SetControlLock(bool isLocked)
@@ -105,6 +113,14 @@ namespace Core.Player
             {
                 _currentInputVector = Vector2.zero;
                 UpdateAnimator();
+            }
+            else
+            {
+                // [Fix WebGL Bug] ถ้าระบบปลดล็อค ให้ดึง Focus ของ Input System กลับมาทำงานต่อ
+                if (_inputReader != null)
+                {
+                    _inputReader.EnableInput();
+                }
             }
         }
 
@@ -159,6 +175,17 @@ namespace Core.Player
             ApplyGravity();
             UpdateAnimator();
             UpdateColliderShape();
+
+            // [Fail-safe] ป้องกันแอนิเมชันหน้ากากค้าง (Animation Lock)
+            if (_isTogglingMask)
+            {
+                _maskToggleTimer -= Time.deltaTime;
+                if (_maskToggleTimer <= 0f)
+                {
+                    Debug.LogWarning("⚠️ Mask Toggle Timeout! บังคับปลดล็อคสถานะหน้ากากเนื่องจากแอนิเมชันถูกตัดจบ");
+                    AnimEvent_Finish(); // บังคับเรียกฟังก์ชันปลดล็อค
+                }
+            }
 
 #if UNITY_EDITOR
             if (_modelTransform != null) ApplyModelOffset();
@@ -215,6 +242,7 @@ namespace Core.Player
             if (_inputLocked || _isTogglingMask || Time.time < _lastToggleTime + _maskCooldown) return;
 
             _isTogglingMask = true;
+            _maskToggleTimer = _maxMaskToggleTime; // [Fix] เริ่มจับเวลา Fail-safe ถอยหลัง
             _lastToggleTime = Time.time;
 
             _isEquippingSequence = !IsMaskEquipped;
@@ -313,7 +341,6 @@ namespace Core.Player
         {
             if (_inputLocked) return;
 
-            // [Check] ตรวจสอบ Config ว่าอนุญาตให้กระโดดไหม
             if (!_config.CanJump) return;
 
             if (_characterController.isGrounded && !IsCrouching)
@@ -327,7 +354,6 @@ namespace Core.Player
         {
             if (_inputLocked) return;
 
-            // [Check] ตรวจสอบ Config ว่าอนุญาตให้ย่อไหม
             if (!_config.CanCrouch) return;
 
             if (_stateMachine.CurrentState is PlayerStandingState)
