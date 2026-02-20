@@ -1,5 +1,6 @@
 ﻿using UnityEngine;
 using UnityEngine.Events;
+using UnityEngine.SceneManagement; // [New] เพิ่ม Library นี้
 using Core.Patterns;
 using Core.Input;
 
@@ -21,12 +22,44 @@ namespace Core.Managers
 
         private void Start()
         {
-            if (_mainCamera == null) _mainCamera = Camera.main;
+            // หา Camera ครั้งแรก
+            InitializeCamera();
+        }
+
+        private void OnEnable()
+        {
+            // [New] ฟัง Event เมื่อโหลดฉากใหม่
+            SceneManager.sceneLoaded += OnSceneLoaded;
+        }
+
+        private void OnDisable()
+        {
+            // [New] เลิกฟัง
+            SceneManager.sceneLoaded -= OnSceneLoaded;
+        }
+
+        // [New] เมื่อฉากโหลดเสร็จ ให้หา Camera ใหม่ทันที
+        private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+        {
+            InitializeCamera();
+
+            // Optional: รีเซ็ตหน้ากากเป็น "ถอด" ทุกครั้งที่เริ่มด่านใหม่ เพื่อกันงง
+            // ถ้าอยากให้จำค่าเดิมข้ามด่านได้ ให้ลบบรรทัดนี้ออก
+            if (IsMaskEquipped)
+            {
+                IsMaskEquipped = false;
+                OnRealityChanged?.Invoke(IsMaskEquipped);
+            }
+
+            // อัปเดตการมองเห็นของกล้องใหม่
             UpdateCameraCulling();
         }
 
-        // [Removed] ลบ OnEnable/OnDisable ที่คอยฟัง InputReader ออก
-        // เพราะเราจะย้ายการควบคุม Input ไปที่ PlayerController เพื่อให้รออนิเมชั่นก่อน
+        private void InitializeCamera()
+        {
+            if (_mainCamera == null) _mainCamera = Camera.main;
+            UpdateCameraCulling();
+        }
 
         public void ToggleReality()
         {
@@ -40,6 +73,9 @@ namespace Core.Managers
 
         private void UpdateCameraCulling()
         {
+            // [Fix] เช็คว่ากล้องหายไปแล้วหรือยัง (เผื่อถูกทำลาย) ถ้าหายให้หาใหม่
+            if (_mainCamera == null) _mainCamera = Camera.main;
+
             if (_mainCamera == null) return;
 
             if (IsMaskEquipped)

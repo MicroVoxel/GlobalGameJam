@@ -27,6 +27,24 @@ namespace Core.Interaction
             _originalLayer = gameObject.layer;
             _dualObject = GetComponent<DualObject>();
         }
+        private void Start()
+        {
+            // ถ้าวัตถุเผลอค้างอยู่ที่ Layer "Ignore Raycast" ให้ดีดกลับเป็น Layer เดิม
+            // หรือถ้ามี DualObject ให้ DualObject จัดการ Layer
+            if (gameObject.layer == LayerMask.NameToLayer("Ignore Raycast"))
+            {
+                // คืนค่า Layer ตามสถานะ DualObject (ถ้ามี) หรือ Default
+                if (_dualObject != null)
+                {
+                    // ให้ DualObject คำนวณ Layer เอง
+                    // (แต่ต้องแน่ใจว่า DualObject.Start ทำงานแล้ว ซึ่ง Unity จะจัดการให้)
+                }
+                else
+                {
+                    gameObject.layer = LayerMask.NameToLayer("Default");
+                }
+            }
+        }
 
         public void OnInteract(PlayerController player)
         {

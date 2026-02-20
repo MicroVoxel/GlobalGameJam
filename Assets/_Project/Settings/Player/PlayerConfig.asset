@@ -17,8 +17,8 @@ MonoBehaviour:
   WalkSpeed: 4
   CrouchSpeed: 2
   SmoothTime: 0.1
-  LookSensitivityX: 0.5
-  LookSensitivityY: 0.5
+  LookSensitivityX: 0.25
+  LookSensitivityY: 0.25
   TopClamp: 90
   BottomClamp: -90
   Gravity: -15

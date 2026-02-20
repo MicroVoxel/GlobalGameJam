@@ -1,10 +1,11 @@
 ﻿using UnityEngine;
 using Core.World;
-using Core.Interaction; // ต้องใช้เพื่อเช็ค GrabbableObject
+using Core.Interaction;
 using DG.Tweening;
 
 namespace Content.Puzzles
 {
+    [RequireComponent(typeof(AudioSource))] // เพิ่ม AudioSource
     public class DimensionPedestal : MonoBehaviour
     {
         [Header("Settings")]
@@ -15,26 +16,29 @@ namespace Content.Puzzles
         [SerializeField] private Transform _visualFeedback;
         [SerializeField] private float _cooldown = 2.0f;
 
-        private float _lastProcessTime;
+        [Header("Audio")]
+        [SerializeField] private AudioClip _convertSound; // เสียงตอนวาร์ปของ
 
-        // [Changed] เปลี่ยนจาก OnTriggerEnter เป็น OnTriggerStay
-        // เพื่อให้เช็คตลอดเวลาที่วัตถุแช่อยู่ใน Trigger
+        private float _lastProcessTime;
+        private AudioSource _audioSource;
+
+        private void Awake()
+        {
+            _audioSource = GetComponent<AudioSource>();
+        }
+
         private void OnTriggerStay(Collider other)
         {
             if (Time.time < _lastProcessTime + _cooldown) return;
 
-            // 1. ต้องมี Rigidbody (ของที่ขยับได้)
             if (other.attachedRigidbody == null) return;
 
-            // 2. [Fix] ต้องไม่ถูกถืออยู่ (IsHeld == false)
-            // ลองดึง Component GrabbableObject ออกมาเช็ค
             GrabbableObject grabbable = other.GetComponent<GrabbableObject>();
             if (grabbable != null && grabbable.IsHeld)
             {
-                return; // ถ้าถืออยู่ ห้ามเปลี่ยนมิติ
+                return;
             }
 
-            // 3. ตรวจสอบว่าเป็น DualObject และยังไม่ได้อยู่โลกเป้าหมาย
             DualObject dualObj = other.GetComponent<DualObject>();
             if (dualObj != null && dualObj.CurrentType != _targetReality)
             {
@@ -49,6 +53,13 @@ namespace Content.Puzzles
             if (_visualFeedback)
             {
                 _visualFeedback.DOPunchScale(Vector3.one * 0.1f, 0.5f);
+            }
+
+            // [New] Play Sound
+            if (_audioSource && _convertSound)
+            {
+                _audioSource.pitch = Random.Range(0.9f, 1.1f); // เสียงแนว Sci-fi หรือ Magic มักจะมีการเปลี่ยน Pitch
+                _audioSource.PlayOneShot(_convertSound);
             }
 
             Debug.Log($"🌀 Transforming object '{obj.name}' to World: {_targetReality}");
